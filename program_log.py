@@ -1,5 +1,4 @@
-#! /usr/bin/python
-# ! python3
+#! /usr/bin/env python3
 #  -*- coding: utf-8 -*-
 import psycopg2
 
@@ -88,37 +87,21 @@ reporting_commands = ["""select name, id from authors""",
                       articles.title, authors.name, log.path order by
                       articles.title""",
 
-                      """select articles.title, count(log.status) as views
-                      from articles, log where log.status='200 OK' and
-                      log.path <> '/' and ((substring(regexp_replace(log.path,
-                      '/article/', '') from 0 for position('-' in
-                      regexp_replace(log.path, '/article/', ''))) like
-                      lower(substring(articles.title from 0 for position(' '
-                      in articles.title)))) or (articles.title like 'There are
-                      a lot of bears' and log.path like
-                      '/article/so-many-bears')) group by articles.title order
-                      by views desc limit 3""",
+                      """select title, count(*) as views
+                      from log join articles on log.path =
+                      concat('/article/', articles.slug) group by title
+                      order by views desc limit 3""",
 
-                      """select authors.name, sum(case when authors.id =
-                      articles.author then 1 else 0 end) as views from
-                      authors, articles, log where articles.author =
-                      authors.id and log.status='200 OK' and log.path <> '/'
-                      and ((substring(regexp_replace(log.path, '/article/', '')
-                      from 0 for position('-' in regexp_replace(log.path,
-                      '/article/', ''))) like lower(substring(articles.title
-                      from 0 for position(' ' in articles.title)))) or
-                      (articles.title like 'There are a lot of bears' and
-                      log.path like '/article/so-many-bears')) group by
-                      authors.name order by views desc""",
+                      """select authors.name, count(*) as views from authors,
+                       articles, log where authors.id = articles.author and
+                       log.path = concat('/article/', articles.slug) group by
+                       authors.name order by views desc""",
 
-                      """select time::date, (100 * (sum(case when status
-                      like '404 NOT FOUND' then 1 else 0 end)::float(2) /
-                      sum(case when status like '200 OK' then 1 else 0 end)
-                      ::float(2))) as percent_error from log group by
-                      time::date having (100 * (sum(case when status like
-                      '404 NOT FOUND' then 1 else 0 end)::float(2) /
-                      sum(case when status like '200 OK' then 1 else 0 end)::
-                      float(2))) > 1 order by percent_error desc"""
+                      """select to_char(date, 'FMMonth FMDD, YYYY'), err/total
+                      as ratio from (select time::date as date, count(*) as
+                      total, sum((status != '200 OK')::int)::float as err
+                      from log group by date) as errors where
+                      err/total > 0.01;"""
                       ]
 
 # conn variable connects to the database.
@@ -136,9 +119,19 @@ for i in range(9, len(question_list)):
     cursor.execute(reporting_commands[i])
     # Loops through the table resulted from the executed command.
     for result in cursor.fetchall():
-        # Prints the row from resulted table.
-        print(result)
-    print('\n')
+        # Prints new line and a tab.
+        print("\n\t", end="")
+        # Loops through the columns in the row of the resulted table.
+        for value in result:
+            # Converts the value to a string, handles cases when the value is
+            # not a string.
+            str_value = str(value)
+            # Justified the value string.
+            print(str_value.ljust(40, ' '), end="")
+        # Prints a new line after every row.
+        print("\n")
+    # Prints a new line.
+    print("-" * 70)
 
 # The connection to the database is closed.
 conn.close()
